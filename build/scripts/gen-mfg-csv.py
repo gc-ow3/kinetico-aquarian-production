@@ -57,9 +57,6 @@ class macAddr():
 			# Available list of addresses used up
 			raise RuntimeError('Not enough MAC addresses available')
 
-		self.macAvailable = (self.macEnd - self.macCurr + self.macStep) / self.macStep
-		#print(f'Available # of MAC addresses: {self.macAvailable}')
-
 	def __save__(self) -> bool:
 		macData = [
 			f'{self.macStart:012x}',
@@ -88,7 +85,8 @@ class macAddr():
 		return True
 
 	def available(self) -> int:
-		return self.macAvailable
+		'''Return the number of available MAC addresses'''
+		return (self.macEnd - self.macCurr + self.macStep) / self.macStep
 
 	def get(self) -> str:
 		if self.macCurr > self.macEnd:
@@ -108,11 +106,6 @@ class macAddr():
 		else:
 			return None
 
-
-def genPopCode() -> str:
-	return f"{random.randint(0, 9999):04}"
-
-
 class builder():
 	def __init__(self, macFile):
 		'''Set up MAC address manager to allocate 4 sequential MAC addresses for each unit: Wi-Fi AP, Wi-Fi STA, BLE, Ethernet'''
@@ -121,6 +114,13 @@ class builder():
 		except:
 			raise
 
+def genPopCode() -> str:
+	return f"{random.randint(0, 9999):04}"
+
+
+def encodeMac(mac:str) -> str:
+	mac = mac.upper()
+	return f"{mac[0:2]}:{mac[2:4]}:{mac[4:6]}:{mac[6:8]}:{mac[8:10]}:{mac[10:12]}"
 
 def main() -> int:
 	dfltMAC = os.path.join('prod_db', 'mac_addr.txt')
@@ -151,30 +151,53 @@ def main() -> int:
 		print(f'Failed to initialize builder: {e}')
 		return 1
 
-	with open(arg.output, "wt") as fh:
-		fh.write("serial_num,mac_base_addr,pop_code,qr_code\n")
+	freeMACs = bld.macAddr.available()
+	if arg.count > freeMACs:
+		print(f"Only {freeMACs} MAC addresses available")
+		return 1
+
+	with open(arg.output, "w") as fh:
+		fh.write("serial_num,mac_sta,mac_eth,pop_code,qr_code\n")
 
 	genCount = 0
 	for _ in range(arg.count):
-		# Get base MAC address
+		# Get base MAC address, this is the Wi-Fi STA address
 		macBase = bld.macAddr.get()
 		if macBase is None:
 			return 1
 
+		# The base MAC address is used as the serial number
+		serNum = macBase
+
+		# Wi-Fi STA MAC is the base MAC in the form xx:xx:xx:xx:xx:xx
+		# Printed on the label
+		# Included in the QR code
+		macSTA = encodeMac(macBase)
+
 		# BLE MAC is base MAC plus 2
-		macBLE = f"{int(macBase, 16) + 2:012x}"
+		# Included in the QR code
+		macBLE = encodeMac(f"{int(macBase, 16) + 2:012x}")
+
+		# Ethernet MAC is base MAC plus 3
+		# Printed on the label
+		macETH = encodeMac(f"{int(macBase, 16) + 3:012x}")
+
+		# PoP (Proof of Possession) code
+		# Printed on label
+		# Included in the QR code
 		popCode = genPopCode()
 
-		# Build the QR label data
-		qrCode = f'"{macBase},{macBLE},{popCode}"'
+		# QR label data
+		qrCode = f'"{serNum},{macSTA},{macBLE},{popCode}"'
 
-		# For this product base MAC address and serial number are the same
-		with open(arg.output, "at") as fh:
-			fh.write(f"{macBase},{macBase},{popCode},{qrCode}\n")
+		with open(arg.output, "a") as fh:
+			fh.write(f"{serNum},{macSTA},{macETH},{popCode},{qrCode}\n")
 		genCount += 1
 
 	# Successful completion
 	print(f"{genCount} records created")
+	print(f"{bld.macAddr.available()} MAC addresses are available")
+	
 	return 0
 
 if __name__ == "__main__":
