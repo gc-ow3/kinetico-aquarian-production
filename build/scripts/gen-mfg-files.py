@@ -24,13 +24,13 @@ class builder():
 	def procLine(self, line):
 		line = line.strip()
 		cols = line.split(",")
-		if len(cols) < 3:
+		if len(cols) < 5:
 			print(f"Bad line {line}")
 			return False
 
 		serNum  = cols[0].strip()
-		macBase = cols[1].strip()
-		popCode = cols[2].strip()
+		macBase = serNum
+		popCode = cols[3].strip()
 
 		mfgPath = os.path.join(self.outRoot, "units", f"{serNum}")
 
@@ -105,10 +105,13 @@ def main() -> int:
 	if not os.path.exists(arg.input):
 		print("Input file not found")
 
+	print("")
 	with open(arg.input, "rt") as inp:
 		lineCt = 0
 		buildCt = 0
 		for line in inp:
+			if (buildCt % 20) == 0:
+				print(f"\r{buildCt:4} completed", end="")
 			lineCt += 1
 			if 1 == lineCt:
 				# Skip header line
