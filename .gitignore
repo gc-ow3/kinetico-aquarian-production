@@ -1,0 +1,5 @@
+gen_bak/**
+build/prod_db_bak/**
+build/mfg_data/**
+
+
